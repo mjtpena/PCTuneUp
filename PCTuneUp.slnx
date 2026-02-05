@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="PCTuneUp.Core/PCTuneUp.Core.csproj" />
+  <Project Path="PCTuneUp.Tests/PCTuneUp.Tests.csproj" />
+  <Project Path="PCTuneUp/PCTuneUp.csproj" />
+</Solution>

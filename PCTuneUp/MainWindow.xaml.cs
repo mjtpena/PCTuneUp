@@ -336,94 +336,17 @@ public partial class MainWindow : Window
         });
     }
 
-    private static string FormatBytes(long bytes)
-    {
-        if (bytes >= 1_073_741_824) return $"{bytes / 1_073_741_824.0:F2} GB";
-        if (bytes >= 1_048_576) return $"{bytes / 1_048_576.0:F2} MB";
-        if (bytes >= 1024) return $"{bytes / 1024.0:F2} KB";
-        return $"{bytes} bytes";
-    }
+    private static string FormatBytes(long bytes) => CleanupUtilities.FormatBytes(bytes);
 
     // ===== SCAN METHODS =====
     
-    private Task<long> ScanTempFilesAsync() => Task.Run(() =>
-    {
-        long totalSize = 0;
-        var tempPaths = new[]
-        {
-            Environment.GetEnvironmentVariable("TEMP") ?? Path.GetTempPath(),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "Temp")
-        };
+    private Task<long> ScanTempFilesAsync() => Task.Run(() => CleanupUtilities.ScanTempFiles());
 
-        foreach (var path in tempPaths)
-        {
-            if (Directory.Exists(path))
-                totalSize += GetDirectorySize(path);
-        }
-        return totalSize;
-    });
+    private Task<long> ScanWindowsUpdateCacheAsync() => Task.Run(() => CleanupUtilities.ScanWindowsUpdateCache());
 
-    private Task<long> ScanWindowsUpdateCacheAsync() => Task.Run(() =>
-    {
-        var path = @"C:\Windows\SoftwareDistribution\Download";
-        return Directory.Exists(path) ? GetDirectorySize(path) : 0;
-    });
+    private Task<long> ScanRecycleBinAsync() => Task.Run(() => CleanupUtilities.ScanRecycleBin());
 
-    private Task<long> ScanRecycleBinAsync() => Task.Run(() =>
-    {
-        long totalSize = 0;
-        foreach (var drive in DriveInfo.GetDrives().Where(d => d.IsReady))
-        {
-            var recyclePath = Path.Combine(drive.RootDirectory.FullName, "$Recycle.Bin");
-            if (Directory.Exists(recyclePath))
-            {
-                try { totalSize += GetDirectorySize(recyclePath); } catch { }
-            }
-        }
-        return totalSize;
-    });
-
-    private Task<long> ScanBrowserCacheAsync(string browser) => Task.Run(() =>
-    {
-        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        
-        var cachePaths = browser switch
-        {
-            "Chrome" => new[] { 
-                Path.Combine(localAppData, @"Google\Chrome\User Data\Default\Cache"),
-                Path.Combine(localAppData, @"Google\Chrome\User Data\Default\Code Cache"),
-                Path.Combine(localAppData, @"Google\Chrome\User Data\Default\GPUCache")
-            },
-            "Edge" => new[] { 
-                Path.Combine(localAppData, @"Microsoft\Edge\User Data\Default\Cache"),
-                Path.Combine(localAppData, @"Microsoft\Edge\User Data\Default\Code Cache"),
-                Path.Combine(localAppData, @"Microsoft\Edge\User Data\Default\GPUCache")
-            },
-            "Firefox" => new[] { Path.Combine(localAppData, @"Mozilla\Firefox\Profiles") },
-            _ => Array.Empty<string>()
-        };
-
-        long total = 0;
-        foreach (var cachePath in cachePaths)
-        {
-            if (!Directory.Exists(cachePath)) continue;
-
-            if (browser == "Firefox")
-            {
-                foreach (var profile in Directory.GetDirectories(cachePath))
-                {
-                    var cache2 = Path.Combine(profile, "cache2");
-                    if (Directory.Exists(cache2))
-                        total += GetDirectorySize(cache2);
-                }
-            }
-            else
-            {
-                total += GetDirectorySize(cachePath);
-            }
-        }
-        return total;
-    });
+    private Task<long> ScanBrowserCacheAsync(string browser) => Task.Run(() => CleanupUtilities.ScanBrowserCache(browser));
 
     private Task<long> ScanDnsCacheAsync() => Task.FromResult(0L);
 
@@ -431,32 +354,15 @@ public partial class MainWindow : Window
 
     private Task<long> CleanTempFilesAsync(Action<string> log) => Task.Run(() =>
     {
-        long totalCleaned = 0;
-        var tempPaths = new[]
-        {
-            Environment.GetEnvironmentVariable("TEMP") ?? Path.GetTempPath(),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "Temp")
-        };
-
-        foreach (var path in tempPaths)
-        {
-            if (Directory.Exists(path))
-            {
-                var (cleaned, skipped) = DeleteFilesInDirectoryWithStats(path);
-                totalCleaned += cleaned;
-                if (skipped > 0)
-                    log($"   Skipped {skipped} files in use");
-            }
-        }
-        return totalCleaned;
+        var (cleaned, skipped) = CleanupUtilities.CleanTempFiles();
+        if (skipped > 0)
+            log($"   Skipped {skipped} files in use");
+        return cleaned;
     });
 
     private Task<long> CleanWindowsUpdateCacheAsync(Action<string> log) => Task.Run(() =>
     {
-        var path = @"C:\Windows\SoftwareDistribution\Download";
-        if (!Directory.Exists(path)) return 0L;
-        
-        var (cleaned, skipped) = DeleteFilesInDirectoryWithStats(path);
+        var (cleaned, skipped) = CleanupUtilities.CleanWindowsUpdateCache();
         if (skipped > 0)
             log($"   Skipped {skipped} files in use");
         return cleaned;
@@ -484,56 +390,10 @@ public partial class MainWindow : Window
 
     private Task<long> CleanBrowserCacheAsync(string browser, Action<string> log) => Task.Run(() =>
     {
-        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        
-        var cachePaths = browser switch
-        {
-            "Chrome" => new[] { 
-                Path.Combine(localAppData, @"Google\Chrome\User Data\Default\Cache"),
-                Path.Combine(localAppData, @"Google\Chrome\User Data\Default\Code Cache"),
-                Path.Combine(localAppData, @"Google\Chrome\User Data\Default\GPUCache")
-            },
-            "Edge" => new[] { 
-                Path.Combine(localAppData, @"Microsoft\Edge\User Data\Default\Cache"),
-                Path.Combine(localAppData, @"Microsoft\Edge\User Data\Default\Code Cache"),
-                Path.Combine(localAppData, @"Microsoft\Edge\User Data\Default\GPUCache")
-            },
-            "Firefox" => new[] { Path.Combine(localAppData, @"Mozilla\Firefox\Profiles") },
-            _ => Array.Empty<string>()
-        };
-
-        long totalCleaned = 0;
-        int totalSkipped = 0;
-        
-        foreach (var cachePath in cachePaths)
-        {
-            if (!Directory.Exists(cachePath)) continue;
-
-            if (browser == "Firefox")
-            {
-                foreach (var profile in Directory.GetDirectories(cachePath))
-                {
-                    var cache2 = Path.Combine(profile, "cache2");
-                    if (Directory.Exists(cache2))
-                    {
-                        var (cleaned, skipped) = DeleteFilesInDirectoryWithStats(cache2);
-                        totalCleaned += cleaned;
-                        totalSkipped += skipped;
-                    }
-                }
-            }
-            else
-            {
-                var (cleaned, skipped) = DeleteFilesInDirectoryWithStats(cachePath);
-                totalCleaned += cleaned;
-                totalSkipped += skipped;
-            }
-        }
-        
-        if (totalSkipped > 0)
-            log($"   Skipped {totalSkipped} files (browser may still be running)");
-            
-        return totalCleaned;
+        var (cleaned, skipped) = CleanupUtilities.CleanBrowserCache(browser);
+        if (skipped > 0)
+            log($"   Skipped {skipped} files (browser may still be running)");
+        return cleaned;
     });
 
     private Task<long> CleanDnsCacheAsync(Action<string> log) => Task.Run(() =>
@@ -553,49 +413,7 @@ public partial class MainWindow : Window
 
     // ===== HELPERS =====
 
-    private static long GetDirectorySize(string path)
-    {
-        long size = 0;
-        try
-        {
-            foreach (var file in Directory.EnumerateFiles(path, "*", SearchOption.AllDirectories))
-            {
-                try { size += new FileInfo(file).Length; } catch { }
-            }
-        }
-        catch { }
-        return size;
-    }
+    private static long GetDirectorySize(string path) => CleanupUtilities.GetDirectorySize(path);
 
-    private static (long cleaned, int skipped) DeleteFilesInDirectoryWithStats(string path)
-    {
-        long totalCleaned = 0;
-        int skippedCount = 0;
-        
-        try
-        {
-            foreach (var file in Directory.EnumerateFiles(path, "*", SearchOption.AllDirectories))
-            {
-                try
-                {
-                    var fi = new FileInfo(file);
-                    var size = fi.Length;
-                    fi.Delete();
-                    totalCleaned += size;
-                }
-                catch
-                {
-                    skippedCount++;
-                }
-            }
-            
-            foreach (var dir in Directory.EnumerateDirectories(path))
-            {
-                try { Directory.Delete(dir, true); } catch { }
-            }
-        }
-        catch { }
-        
-        return (totalCleaned, skippedCount);
-    }
+    private static (long cleaned, int skipped) DeleteFilesInDirectoryWithStats(string path) => CleanupUtilities.DeleteFilesInDirectoryWithStats(path);
 }

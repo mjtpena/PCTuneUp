@@ -1,8 +1,8 @@
 # 🧹 PC TuneUp
 
-A lightweight Windows PC cleanup utility built with WPF and .NET 8. Clean up junk files and optimize your system with a modern, user-friendly interface.
+A lightweight Windows PC cleanup utility built with WPF and .NET 10. Clean up junk files and optimize your system with a modern, user-friendly interface.
 
-![.NET](https://img.shields.io/badge/.NET-8.0-512BD4)
+![.NET](https://img.shields.io/badge/.NET-10.0-512BD4)
 ![Platform](https://img.shields.io/badge/Platform-Windows-0078D6)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
@@ -26,7 +26,7 @@ The app features a modern dark theme with clear status indicators:
 ## Requirements
 
 - Windows 10/11
-- .NET 8.0 Runtime
+- .NET 10.0 Runtime
 - Administrator privileges (for cleaning system folders)
 
 ## Installation
@@ -41,7 +41,7 @@ cd PCTuneUp/PCTuneUp
 dotnet build --configuration Release
 ```
 
-The executable will be in `bin/Release/net8.0-windows/PCTuneUp.exe`
+The executable will be in `bin/Release/net10.0-windows/PCTuneUp.exe`
 
 ## Usage
 
