@@ -43,6 +43,21 @@ dotnet build --configuration Release
 
 The executable will be in `bin/Release/net10.0-windows/PCTuneUp.exe`
 
+## Testing
+
+The project includes comprehensive unit tests covering the core cleanup utilities.
+
+```powershell
+# Run all tests
+dotnet test
+
+# Run tests with detailed output
+cd PCTuneUp.Tests
+dotnet test --logger:"console;verbosity=detailed"
+```
+
+See [PCTuneUp.Tests/README.md](PCTuneUp.Tests/README.md) for more information about test coverage.
+
 ## Usage
 
 1. **Run as Administrator** - Right-click the exe and select "Run as administrator"
